@@ -30,6 +30,7 @@ creado: 18-01-2023
 #define _XTAL_FREQ 4000000
 #include <xc.h>
 #include <stdio.h>
+#include "adc.h"      //libreria para el manejo del ADC
 
 ////////////////////////////////////////////////////////////////////////////////
 // VARIABLES
@@ -37,6 +38,7 @@ creado: 18-01-2023
 
 int flag = 0;
 int flag2 = 0;
+int valor_adc;
 
 ////////////////////////////////////////////////////////////////////////////////
 // PROTOTIPOS DE FUNCIONES
@@ -68,11 +70,14 @@ void main(void)
 {
     setupINTOSC(); //configuracion del reloj oscilador
     setupPORTS(); //configuracion de los puertos
+    ADC_Init(AN12);
     setupINT_PORTB(); //configuracion de interrupt on change
 
     // bucle infinito
     while(1)
     {
+      valor_adc = ADC_Read(12);
+      PORTA = valor_adc;
     }
 }
 
@@ -99,10 +104,13 @@ void setupPORTS(void)
   //salidas
   TRISD = 0;
   PORTD = 0;
+  TRISA = 0;
+  PORTA = 0;
 
   //entradas
   TRISBbits.TRISB7 = 1;
   TRISBbits.TRISB6 = 1;
+  TRISBbits.TRISB0 = 1;
   PORTB = 0;
 }
 
