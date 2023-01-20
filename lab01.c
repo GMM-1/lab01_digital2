@@ -7,7 +7,7 @@ compilador: XC8
 proyecto: laboratorio 01
 hardware: PIC 16F887
 creado: 18-01-2023
-última modificación: 18-01-2023
+última modificación: 19-01-2023
  ********************************************************************************
  */
 
@@ -30,14 +30,14 @@ creado: 18-01-2023
 #define _XTAL_FREQ 4000000
 #include <xc.h>
 #include <stdio.h>
-#include "adc.h"      //libreria para el manejo del ADC
+#include "ADC.h"      //libreria para el manejo del ADC
 
 ////////////////////////////////////////////////////////////////////////////////
 // VARIABLES
 ////////////////////////////////////////////////////////////////////////////////
 
-int flag = 0;
-int flag2 = 0;
+int flag_antirrebote = 0;
+int flag_antirrebote2 = 0;
 int valor_adc;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -46,8 +46,9 @@ int valor_adc;
 
 void setupINTOSC(void);
 void setupPORTS(void);
-void setupINT_PORTB(void);
+void setupINTERRUPT(void);
 void contador(void);
+void conversion_adc(void);
 
 ////////////////////////////////////////////////////////////////////////////////
 // Rutina de INTERRUPCIONES
@@ -55,12 +56,19 @@ void contador(void);
 
 void __interrupt() isr(void)
 {
+  //INTERRUPCION DEL PORTB
     if (INTCONbits.RBIF == 1)//revisar bandera de interrupcion
     {
         contador();
         INTCONbits.RBIF = 0; //limpiar bandera
     }
-  }
+  //INTERRUPCION DEL ADC
+    if (PIR1bits.ADIF) //revisar bandera de interrupcion
+    {
+      conversion_adc();
+
+    }
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 // CODIGO PRINCIPAL
@@ -68,16 +76,17 @@ void __interrupt() isr(void)
 
 void main(void)
 {
-    setupINTOSC(); //configuracion del reloj oscilador
-    setupPORTS(); //configuracion de los puertos
-    ADC_Init(AN12);
-    setupINT_PORTB(); //configuracion de interrupt on change
+    setupINTOSC();    //configuracion del reloj oscilador
+    setupPORTS();     //configuracion de los puertos
+    setupINTERRUPT(); //configuracion de interrupt on change
+    Init_ADC(AN12);   //Inicializacion del ADC para canal AN12
+
 
     // bucle infinito
     while(1)
     {
-      valor_adc = ADC_Read(12);
-      PORTA = valor_adc;
+    ADCON0bits.GO = 1; // El ciclo A/D esta en progreso
+    PORTA = valor_adc;
     }
 }
 
@@ -114,7 +123,7 @@ void setupPORTS(void)
   PORTB = 0;
 }
 
-void setupINT_PORTB(void)
+void setupINTERRUPT(void)
 {
   //interrupcion del puerto B (push buttons)
   INTCONbits.RBIE = 1; //interrupciones del puerto B
@@ -126,28 +135,39 @@ void setupINT_PORTB(void)
 
   INTCONbits.GIE = 1; //interrupciones globales activadas
   INTCONbits.PEIE = 1; //interrupciones de perifericos
+
+  PIR1bits.ADIF = 0;      // A/D conversion no ha empezado o completado
 }
 
 void contador(void)
 {
   if (PORTBbits.RB6 == 0) //antirrebotes
   {
-    flag = 1;
+    flag_antirrebote = 1;
   }
-  if (PORTBbits.RB6 == 1 && flag == 1) //si se presiona el PB RB6...
+  if (PORTBbits.RB6 == 1 && flag_antirrebote == 1) //si se presiona el PB RB6...
   {
       __delay_ms(10);
       PORTD = PORTD + 1; //incrementamos en uno el puerto D
-      flag = 0;
+      flag_antirrebote = 0;
   }
   if (PORTBbits.RB7 == 0)//antirrebotes
   {
-      flag2 = 1;
+      flag_antirrebote2 = 1;
   }
-  if (PORTBbits.RB7 == 1 && flag2 == 1)//si se presiona el PB RB7...
+  if (PORTBbits.RB7 == 1 && flag_antirrebote2 == 1)//si se presiona el PB RB7...
   {
       __delay_ms(10);
       PORTD = PORTD - 1;//decrementamos en uno el puerto D
-      flag2 = 0;
+      flag_antirrebote2 = 0;
   }
+}
+
+void conversion_adc(void)
+{
+  PIR1bits.ADIF = 0; //conversion A/D sin empezar
+  valor_adc = ADRESH; //registro de resultado del ADC
+
+  //delay de funcionamiento
+  __delay_ms(20);
 }
