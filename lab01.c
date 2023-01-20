@@ -31,26 +31,43 @@ creado: 18-01-2023
 #include <xc.h>
 #include <stdio.h>
 #include "ADC.h"      //libreria para la configuracion del ADC
+#include "HEXDISP.h" //libreria para el manejo de displays
 
 ////////////////////////////////////////////////////////////////////////////////
 // VARIABLES
 ////////////////////////////////////////////////////////////////////////////////
 
+//variables para contador
 int flag_antirrebote = 0;
 int flag_antirrebote2 = 0;
+
+//variables para conversion adc
 int valor_adc;
+
+//variables para multiplexeo
+uint8_t turno_multiplexeo;
+
+//variables para conversion a hexadecimal
+uint8_t display_1;
+uint8_t display_2;
+uint8_t unidades_disp;
+uint8_t decenas_disp;
 
 ////////////////////////////////////////////////////////////////////////////////
 // PROTOTIPOS DE FUNCIONES
 ////////////////////////////////////////////////////////////////////////////////
 
+//configuraciones
 void setupINTOSC(void);
 void setupPORTS(void);
 void setupINTERRUPT(void);
 void setupTMR1(void);
+
 void contador(void);
 void conversion_adc(void);
 void reseteo_TMR1(void);
+void conversion_hexa(void);
+void multiplexeo(void);
 
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -59,13 +76,29 @@ void reseteo_TMR1(void);
 
 void __interrupt() isr(void)
 {
-
   //INTERRUPCION DEL TMR1H
   if(PIR1bits.TMR1IF) //se enciende la bandera cada segundo
   {
-    PORTC++;
     reseteo_TMR1();
+
+    //multiplexeo
+    switch (turno_multiplexeo)
+    {
+        case 0:
+            PORTC = display_1;
+            PORTEbits.RE0 = 1;
+            PORTEbits.RE1 = 0;
+            break;
+        case 1:
+            PORTC = display_2;
+            PORTEbits.RE0 = 0;
+            PORTEbits.RE1 = 1;
+            break;
+        default:
+            turno_multiplexeo = 0;
+            break;
   }
+}
 
   //INTERRUPCION DEL PORTB
     if (INTCONbits.RBIF == 1)//revisar bandera de interrupcion
@@ -75,10 +108,13 @@ void __interrupt() isr(void)
     }
 
   //INTERRUPCION DEL ADC
-    if (PIR1bits.ADIF) //revisar bandera de interrupcion
-    {
-      conversion_adc();
-    }
+  if (PIR1bits.ADIF){
+      if (ADCON0bits.CHS ){
+         valor_adc = ADRESH;
+         //PORTD = cuenta;
+      }
+      PIR1bits.ADIF = 0;
+  }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -97,8 +133,22 @@ void main(void)
     // bucle infinito
     while(1)
     {
-    ADCON0bits.GO = 1; // El ciclo A/D esta en progreso
-    PORTA = valor_adc;
+      //mandamos el valor del adc al puerto
+      ADCON0bits.GO = 1; // El ciclo A/D esta en progreso
+      PORTA = valor_adc;
+
+      //despliegue del ADC en los 7 segmentos
+      conversion_hexa();   //hacemos la conversion del adc a hexadecimal
+      multiplexeo();       //hacemos los turnos para cada display
+
+      //alarma
+      if(PORTD <= valor_adc)
+      {
+          PORTEbits.RE2 = 1;
+      }
+      else{
+          PORTEbits.RE2 = 0;
+      }
     }
 }
 
@@ -129,6 +179,9 @@ void setupPORTS(void)
   PORTA = 0;
   TRISC = 0;
   PORTC = 0;
+  TRISE = 0;
+  PORTE = 0;
+
 
   //entradas
   TRISBbits.TRISB7 = 1;
@@ -210,4 +263,35 @@ void reseteo_TMR1(void)
   TMR1H = 254;
   TMR1L = 12;
   PIR1bits.TMR1IF = 0; //apagamos la bandera
+}
+
+void conversion_hexa(void)
+{
+    // para el display1 desplegamos las unidades
+    unidades_disp = valor_adc%16;
+    // para el display2 desplegamos las decenas
+    decenas_disp = valor_adc/16;
+
+    //hacemos la conversion a hexadecimal
+    display_1 = ArregloHex(unidades_disp);
+    display_2 = ArregloHex(decenas_disp);
+    return;
+}
+
+void multiplexeo(void)
+{
+    // Actualiza el valor de turno para realizar multiplexeo
+    switch(turno_multiplexeo)
+    {
+        case 0:
+            turno_multiplexeo = 1 ;
+            break;
+        case 1:
+            turno_multiplexeo = 0 ;
+            break;
+        default:
+            turno_multiplexeo = 0 ;
+            break;
+    }
+    return;
 }
