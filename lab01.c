@@ -108,10 +108,11 @@ void __interrupt() isr(void)
     }
 
   //INTERRUPCION DEL ADC
-  if (PIR1bits.ADIF){
-      if (ADCON0bits.CHS ){
+  if (PIR1bits.ADIF)
+  {
+      if (ADCON0bits.CHS )
+      {
          valor_adc = ADRESH;
-         //PORTD = cuenta;
       }
       PIR1bits.ADIF = 0;
   }
@@ -142,7 +143,7 @@ void main(void)
       multiplexeo();       //hacemos los turnos para cada display
 
       //alarma
-      if(PORTD <= valor_adc)
+      if(PORTD <= valor_adc) //si el contador es menor que el adc 
       {
           PORTEbits.RE2 = 1;
       }
